@@ -2,11 +2,11 @@
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111827"><title>视频帧处理工具</title>
 <style>*{box-sizing:border-box}body{margin:0;background:#f5f6f8;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}.wrap{max-width:620px;margin:auto;padding:24px 16px 48px}h1{font-size:25px;margin:12px 0 6px}.sub{color:#6b7280;font-size:14px;line-height:1.6}.card{background:#fff;border-radius:18px;padding:16px;margin-top:16px;box-shadow:0 2px 14px #0000000d}input{width:100%}video{width:100%;max-height:360px;background:#111;border-radius:12px;margin-top:12px}button,.download{display:block;width:100%;border:0;border-radius:14px;padding:14px;margin-top:12px;font-size:16px;font-weight:600;text-align:center;text-decoration:none}.primary{background:#111827;color:white}.primary:disabled{opacity:.4}.download{background:#e8f5e9;color:#166534}.bar{height:8px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-top:14px}.fill{height:100%;width:0;background:#111827}.status{font-size:14px;margin-top:10px}.log{font-size:13px;line-height:1.8;max-height:250px;overflow:auto;white-space:pre-wrap;color:#374151}.note{font-size:12px;color:#6b7280;line-height:1.6}</style></head>
 <body><main class="wrap"><h1>视频帧处理工具</h1><div class="sub">手机端 · 每 2 秒随机一个处理点，抽帧 / 补帧交替，保留原视频声音并按播放时钟保持音画同步。</div>
-<section class="card"><input id="file" type="file" accept="video/*"><video id="preview" controls playsinline></video><button id="start" class="primary" disabled>开始处理</button><div class="bar"><div id="fill" class="fill"></div></div><div id="status" class="status">请选择视频</div><a id="download" class="download" hidden>保存处理后视频</a></section>
+<section class="card"><input id="file" type="file" accept="video/*"><video id="preview" controls playsinline></video><button id="start" class="primary" disabled>开始处理</button><label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14px"><input id="verify" type="checkbox" style="width:auto"> 验证模式（处理帧显示红框，仅用于测试）</label><div class="bar"><div id="fill" class="fill"></div></div><div id="status" class="status">请选择视频</div><a id="download" class="download" hidden>保存处理后视频</a></section>
 <section class="card"><b>处理记录</b><div id="log" class="log">暂无记录</div></section>
 <section class="card note">视频只在本机浏览器处理。处理时会从头播放一次视频：抽帧点用相邻画面替代，补帧点用相邻画面混合，不改变时间轴；原声音通过独立音频轨道写入导出文件。请保持页面在前台直到完成。</section></main>
 <script>
-const file=document.querySelector('#file'),video=document.querySelector('#preview'),start=document.querySelector('#start'),status=document.querySelector('#status'),log=document.querySelector('#log'),fill=document.querySelector('#fill'),download=document.querySelector('#download');
+const file=document.querySelector('#file'),video=document.querySelector('#preview'),start=document.querySelector('#start'),status=document.querySelector('#status'),log=document.querySelector('#log'),fill=document.querySelector('#fill'),download=document.querySelector('#download'),verify=document.querySelector('#verify');
 let sourceFile,url,outUrl,audioCtx,mediaSource;
 file.onchange=()=>{sourceFile=file.files[0];if(!sourceFile)return;if(url)URL.revokeObjectURL(url);if(outUrl)URL.revokeObjectURL(outUrl);url=URL.createObjectURL(sourceFile);video.src=url;video.load();start.disabled=false;status.textContent='已选择：'+sourceFile.name;download.hidden=true;log.textContent='等待处理…';fill.style.width='0%'};
 const wait=(el,name)=>new Promise((ok,fail)=>{const a=()=>{cleanup();ok()},b=()=>{cleanup();fail(new Error('视频读取失败'))},cleanup=()=>{el.removeEventListener(name,a);el.removeEventListener('error',b)};el.addEventListener(name,a,{once:true});el.addEventListener('error',b,{once:true})});
@@ -37,7 +37,7 @@ start.onclick=async()=>{
     if(ev&&t-ev.t<.12&&prev){
       if(ev.action==='抽帧')ctx.drawImage(prev,0,0,c.width,c.height);
       else{ctx.drawImage(video,0,0,c.width,c.height);ctx.globalAlpha=.45;ctx.drawImage(prev,0,0,c.width,c.height);ctx.globalAlpha=1}
-      ev.done=true;const s=Math.floor(ev.t/2)*2;log.textContent+=(log.textContent?'\n':'')+s+'–'+Math.min(s+2,dur).toFixed(1)+'s：'+ev.t.toFixed(2)+'s '+ev.action;
+      if(verify.checked){ctx.strokeStyle='#ff0000';ctx.lineWidth=Math.max(8,c.width/80);ctx.strokeRect(4,4,c.width-8,c.height-8)} ev.done=true;const s=Math.floor(ev.t/2)*2;log.textContent+=(log.textContent?'\n':'')+s+'–'+Math.min(s+2,dur).toFixed(1)+'s：'+ev.t.toFixed(2)+'s '+ev.action+' ✓ 已执行';
     }else ctx.drawImage(video,0,0,c.width,c.height);
     const snap=document.createElement('canvas');snap.width=c.width;snap.height=c.height;snap.getContext('2d').drawImage(c,0,0);prev=snap;
    }
@@ -49,7 +49,7 @@ start.onclick=async()=>{
   try{mediaSource.disconnect(dest)}catch(e){}
   const blob=new Blob(chunks,{type:mime});if(!blob.size)throw new Error('导出文件为空');
   outUrl=URL.createObjectURL(blob);download.href=outUrl;download.download='processed-'+sourceFile.name.replace(/\.[^.]+$/,mime.includes('mp4')?'.mp4':'.webm');download.hidden=false;fill.style.width='100%';
-  const done=events.filter(e=>e.done).length;status.textContent='处理完成 · '+done+' 个处理点 · 原时长 '+dur.toFixed(2)+'s · 已保留声音';
+  const done=events.filter(e=>e.done).length;status.textContent='处理完成 · 实际执行 '+done+'/'+events.length+' 个处理点 · 原时长 '+dur.toFixed(2)+'s · 已保留声音'+(verify.checked?' · 验证模式':'');
  }catch(e){status.textContent='处理失败：'+e.message;log.textContent+=(log.textContent?'\n':'')+'如果是 iPhone，请保持页面在前台并换一条较短视频测试。'}finally{video.pause();start.disabled=false}
 };
 </script></body></html>
