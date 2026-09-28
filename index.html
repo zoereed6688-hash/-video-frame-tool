@@ -2,16 +2,16 @@
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111827"><title>视频帧处理工具</title>
 <style>*{box-sizing:border-box}body{margin:0;background:#f5f6f8;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}.wrap{max-width:620px;margin:auto;padding:24px 16px 48px}h1{font-size:25px;margin:12px 0 6px}.sub{color:#6b7280;font-size:14px;line-height:1.6}.card{background:#fff;border-radius:18px;padding:16px;margin-top:16px;box-shadow:0 2px 14px #0000000d}input{width:100%}video{width:100%;max-height:360px;background:#111;border-radius:12px;margin-top:12px}button,.download{display:block;width:100%;border:0;border-radius:14px;padding:14px;margin-top:12px;font-size:16px;font-weight:600;text-align:center;text-decoration:none}.primary{background:#111827;color:white}.primary:disabled{opacity:.4}.download{background:#e8f5e9;color:#166534}.bar{height:8px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-top:14px}.fill{height:100%;width:0;background:#111827}.status{font-size:14px;margin-top:10px}.log{font-size:13px;line-height:1.8;max-height:250px;overflow:auto;white-space:pre-wrap;color:#374151}.note{font-size:12px;color:#6b7280;line-height:1.6}</style></head>
 <body><main class="wrap"><h1>视频帧处理工具</h1><div class="sub">手机端 · 每 2 秒随机一个处理点，抽帧 / 补帧交替，保留原视频声音并按播放时钟保持音画同步。</div>
-<section class="card"><input id="file" type="file" accept="video/*"><div id="stage" style="position:relative"><video id="preview" controls playsinline></video><div id="wmBox" hidden style="position:absolute;border:2px solid #ef4444;background:#ef444422;pointer-events:none"></div></div>
-<label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14px"><input id="watermark" type="checkbox" style="width:auto"> 移动水印处理（自己的/已获授权视频）</label>
-<div id="wmHelp" hidden style="font-size:13px;color:#6b7280;margin-top:8px">先在视频开头框住水印；播放到水印明显换位置时暂停并再次框选。工具会在这些关键位置之间自动跟随。</div>
-<div id="wmStrengthWrap" hidden style="margin-top:10px;font-size:13px;color:#6b7280">处理强度：<select id="wmStrength"><option value="8">轻</option><option value="14" selected>中</option><option value="22">强</option></select> <button id="clearWm" type="button" style="display:inline-block;width:auto;padding:6px 10px;margin:0 0 0 8px;font-size:12px">清除轨迹</button></div><button id="start" class="primary" disabled>开始处理</button><label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14px"><input id="verify" type="checkbox" style="width:auto"> 验证模式（处理帧显示红框，仅用于测试）</label><div class="bar"><div id="fill" class="fill"></div></div><div id="status" class="status">请选择视频</div><button id="download" class="download" hidden type="button">保存到相册</button></section>
+<section class="card"><input id="file" type="file" accept="video/*"><div id="stage" style="position:relative"><video id="preview" controls playsinline></video></div>
+
+
+<button id="start" class="primary" disabled>开始处理</button><label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14px"><input id="verify" type="checkbox" style="width:auto"> 验证模式（处理帧显示红框，仅用于测试）</label><div class="bar"><div id="fill" class="fill"></div></div><div id="status" class="status">请选择视频</div><button id="download" class="download" hidden type="button">保存到相册</button></section>
 <section class="card"><b>处理记录</b><div id="log" class="log">暂无记录</div></section>
 <section class="card note">视频只在本机浏览器处理。处理时会从头播放一次视频：抽帧点用相邻画面替代，补帧点用相邻画面混合，不改变时间轴；原声音通过独立音频轨道写入导出文件。去水印为可选功能：框选水印区域；若水印会移动，可播放到不同时间点重新框选，工具会在这些位置之间跟随处理。请保持页面在前台直到完成。</section></main>
 <script>
-const file=document.querySelector('#file'),video=document.querySelector('#preview'),start=document.querySelector('#start'),status=document.querySelector('#status'),log=document.querySelector('#log'),fill=document.querySelector('#fill'),download=document.querySelector('#download'),verify=document.querySelector('#verify'),watermark=document.querySelector('#watermark'),stage=document.querySelector('#stage'),wmBox=document.querySelector('#wmBox'),wmHelp=document.querySelector('#wmHelp'),wmStrengthWrap=document.querySelector('#wmStrengthWrap'),wmStrength=document.querySelector('#wmStrength'),clearWm=document.querySelector('#clearWm');
+const file=document.querySelector('#file'),video=document.querySelector('#preview'),start=document.querySelector('#start'),status=document.querySelector('#status'),log=document.querySelector('#log'),fill=document.querySelector('#fill'),download=document.querySelector('#download'),verify=document.querySelector('#verify');
 let sourceFile,url,outUrl,audioCtx,mediaSource,wmMarks=[],drag=null;
-watermark.onchange=()=>{wmHelp.hidden=!watermark.checked;wmStrengthWrap.hidden=!watermark.checked;if(!watermark.checked){wmBox.hidden=true;wmMarks=[]}};clearWm.onclick=()=>{wmMarks=[];wmBox.hidden=true;status.textContent='已清除水印轨迹，请重新框选'};
+wmBox.hidden=true;status.textContent='已清除水印轨迹，请重新框选'};
 const point=e=>{const r=video.getBoundingClientRect();return{x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))}};
 stage.onpointerdown=e=>{if(!watermark.checked||!sourceFile)return;const p=point(e);drag={a:p,b:p};stage.setPointerCapture(e.pointerId)};
 stage.onpointermove=e=>{if(!drag)return;drag.b=point(e);const r=video.getBoundingClientRect(),x=Math.min(drag.a.x,drag.b.x),y=Math.min(drag.a.y,drag.b.y),w=Math.abs(drag.a.x-drag.b.x),h=Math.abs(drag.a.y-drag.b.y);wmBox.hidden=false;wmBox.style.left=(r.left-stage.getBoundingClientRect().left+x*r.width)+'px';wmBox.style.top=(r.top-stage.getBoundingClientRect().top+y*r.height)+'px';wmBox.style.width=w*r.width+'px';wmBox.style.height=h*r.height+'px'};
@@ -19,31 +19,7 @@ stage.onpointerup=e=>{if(!drag)return;const x=Math.min(drag.a.x,drag.b.x),y=Math
 file.onchange=()=>{wmMarks=[];wmBox.hidden=true;sourceFile=file.files[0];if(!sourceFile)return;if(url)URL.revokeObjectURL(url);if(outUrl)URL.revokeObjectURL(outUrl);url=URL.createObjectURL(sourceFile);video.src=url;video.load();start.disabled=false;status.textContent='已选择：'+sourceFile.name;download.hidden=true;log.textContent='等待处理…';fill.style.width='0%'};
 const wait=(el,name)=>new Promise((ok,fail)=>{const a=()=>{cleanup();ok()},b=()=>{cleanup();fail(new Error('视频读取失败'))},cleanup=()=>{el.removeEventListener(name,a);el.removeEventListener('error',b)};el.addEventListener(name,a,{once:true});el.addEventListener('error',b,{once:true})});
 start.onclick=async()=>{
- if(!sourceFile)return;if(watermark.checked&&!wmMarks.length){status.textContent='请先在视频画面框选水印位置';return}start.disabled=true;download.hidden=true;log.textContent='';fill.style.width='0%';
- try{
-  if(video.readyState<1)await wait(video,'loadedmetadata');
-  const dur=video.duration;if(!isFinite(dur)||dur<=0)throw new Error('无法读取视频时长');
-  video.pause();video.currentTime=0;await new Promise(r=>setTimeout(r,80));
-  const c=document.createElement('canvas');c.width=video.videoWidth||720;c.height=video.videoHeight||1280;const ctx=c.getContext('2d',{alpha:false});
-  const vstream=c.captureStream(30);
-  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)throw new Error('当前浏览器不支持音频处理');
-  if(!audioCtx){audioCtx=new AC();mediaSource=audioCtx.createMediaElementSource(video)}
-  await audioCtx.resume();
-  const dest=audioCtx.createMediaStreamDestination();
-  mediaSource.connect(dest);mediaSource.connect(audioCtx.destination);
-  const mixed=new MediaStream([...vstream.getVideoTracks(),...dest.stream.getAudioTracks()]);
-  const choices=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm'];
-  const mime=choices.find(x=>window.MediaRecorder&&MediaRecorder.isTypeSupported(x));if(!mime)throw new Error('当前浏览器暂不支持网页视频编码');
-  const rec=new MediaRecorder(mixed,{mimeType:mime,videoBitsPerSecond:Math.min(8000000,Math.max(2500000,c.width*c.height*4))});
-  const chunks=[];rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};const stopped=new Promise(ok=>rec.onstop=ok);
-  const applyWatermark=(t)=>{
-    if(!watermark.checked||!wmMarks.length)return;
-    let a=wmMarks[0],b=a;
-    for(let i=0;i<wmMarks.length;i++){if(wmMarks[i].t<=t)a=wmMarks[i];if(wmMarks[i].t>t){b=wmMarks[i];break}else b=a}
-    let m=a;if(b!==a&&b.t>a.t){const q=Math.max(0,Math.min(1,(t-a.t)/(b.t-a.t)));m={x:a.x+(b.x-a.x)*q,y:a.y+(b.y-a.y)*q,w:a.w+(b.w-a.w)*q,h:a.h+(b.h-a.h)*q}}
-    const x=Math.round(m.x*c.width),y=Math.round(m.y*c.height),w=Math.max(2,Math.round(m.w*c.width)),h=Math.max(2,Math.round(m.h*c.height));
-    ctx.save();const blur=Number(wmStrength.value)||14;ctx.filter='blur('+blur+'px)';const pad=Math.max(10,Math.round(Math.min(w,h)*.22));const sx=Math.max(0,x-pad),sy=Math.max(0,y-pad),sw=Math.min(c.width-sx,w+pad*2),sh=Math.min(c.height-sy,h+pad*2);ctx.drawImage(c,sx,sy,sw,sh,x,y,w,h);ctx.restore();
-   };
+ if(!sourceFile)return;;
   const events=[];for(let s=0,i=0;s<dur;s+=2,i++){const end=Math.min(s+2,dur),span=end-s,margin=Math.min(.25,span/4),t=s+margin+Math.random()*Math.max(.001,span-margin*2);events.push({t,action:i%2===0?'抽帧':'补帧',done:false})}
   let prev=null,raf=0,lastT=-1;
   const render=()=>{
